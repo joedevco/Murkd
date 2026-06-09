@@ -16,6 +16,12 @@ expo-env.d.ts
 *.mobileprovision
 # Metro
 .metro-health-check*
+# secrets
+.secrets/
+
+# supabase temp
+supabase/.temp/
+
 # debug
 npm-debug.*
 yarn-debug.*
@@ -24,7 +30,7 @@ yarn-error.*
 .DS_Store
 *.pem
 # local env files
-.env*.local
+.env*
 # Firebase service account keys
 *-firebase-adminsdk-*.json
 # typescript
