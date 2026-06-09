@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "563399187558",
+    "project_id": "murkd-5c01f",
+    "storage_bucket": "murkd-5c01f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563399187558:android:de2e77e91284e18732a1a7",
+        "android_client_info": {
+          "package_name": "com.genigeek.Murkd"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYwjDlYuKhGaZcrRke-cj44gF7PFZzH8o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
