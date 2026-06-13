@@ -4,21 +4,62 @@
     "slug": "Murkd",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "murkd",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "murkd"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.genigeek.Murkd"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#8FAF9F"
+        }
+      ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/cc15349b-c9f7-49b9-8164-519b62e47830"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cc15349b-c9f7-49b9-8164-519b62e47830"
+      }
+    },
+    "owner": "murkdapp"
   }
 }

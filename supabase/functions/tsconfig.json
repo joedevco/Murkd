@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "jsr:@supabase/supabase-js@2": ["../node_modules/@supabase/supabase-js/dist/main/index.d.ts"]
+    },
+    "types": ["@types/deno"],
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"]
+}

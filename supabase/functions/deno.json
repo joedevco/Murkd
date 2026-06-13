@@ -1,0 +1,14 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2"
+  },
+  "tasks": {
+    "serve": "deno serve --allow-net --allow-env"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "lint": {
+    "include": ["**/*.ts"]
+  }
+}
