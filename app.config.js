@@ -25,5 +25,8 @@ config.expo.android.package = variants[APP_VARIANT].android.package;
 if (config.expo.ios) {
   config.expo.ios.bundleIdentifier = variants[APP_VARIANT].ios.bundleIdentifier;
 }
+if (APP_VARIANT !== 'production') {
+  delete config.expo.android.googleServicesFile;
+}
 
 module.exports = config;
