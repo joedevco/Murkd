@@ -8,6 +8,14 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  await supabase.from('notifications').insert({
+    user_id,
+    type,
+    actor_ghost_tag,
+    post_preview,
+    post_id,
+  });
+
   const { data: tokens } = await supabase
     .from('push_tokens')
     .select('push_token, platform')
@@ -19,17 +27,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  await supabase.from('notifications').insert({
-    user_id,
-    type,
-    actor_ghost_tag,
-    post_preview,
-    post_id,
-  });
-
   const title = type === 'like'
     ? '🔥 Someone liked your confession'
-    : '🤝 Someone handshaked your confession';
+    : type === 'handshake'
+    ? '🤝 Someone handshaked your confession'
+    : type === 'sad'
+    ? '😢 Someone reacted sad to your confession'
+    : '😂 Someone reacted funny to your confession';
 
   const preview = post_preview ?? '';
   const body = `"${preview.length > 80 ? preview.slice(0, 80) + '...' : preview}" — ${actor_ghost_tag}`;

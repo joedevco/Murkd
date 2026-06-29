@@ -100,7 +100,7 @@ We may update this Privacy Policy from time to time. Changes will be posted with
 
 For questions about this Privacy Policy or to exercise your data rights, contact us at:
 
-**Email:** murkdapp@yahoo.com
+**Email:** murkdapp@gmail.com
 
 ---
 

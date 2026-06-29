@@ -4,12 +4,10 @@ import {
   Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput,
   TouchableOpacity, TouchableWithoutFeedback, View,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { HugeiconsIcon } from '@hugeicons/react-native';
-import { Home01Icon, AddCircleIcon, BellIcon, UserCircleIcon, Settings01Icon } from '@hugeicons/core-free-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { createPost } from '../lib/api';
+import BottomNav from '../components/BottomNav';
 
 interface Props {
   onBack: () => void;
@@ -24,6 +22,7 @@ const MAX = 280;
 const WARN_AT = 240;
 
 export default function PostScreen({ onBack, onPostDone, onNavigateToProfile, onNavigateToSettings, onNavigateToNotifications }: Props) {
+  const Haptics = require('expo-haptics');
   const { user } = useAuth();
   const { colors, theme } = useTheme();
   const ghostTag = (user?.user_metadata?.ghost_tag as string | undefined)?.replace('@', '');
@@ -180,28 +179,13 @@ export default function PostScreen({ onBack, onPostDone, onNavigateToProfile, on
 
       </KeyboardAvoidingView>
 
-      <View style={[styles.nav, { backgroundColor: colors.nav, borderTopColor: colors.navBorder }]}>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onBack}>
-          <HugeiconsIcon icon={Home01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <HugeiconsIcon icon={AddCircleIcon} size={24} color={colors.text} />
-          <Text style={[styles.navLabel, { color: colors.text }]}>POST</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToNotifications}>
-          <HugeiconsIcon icon={BellIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>DROPS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToProfile}>
-          <HugeiconsIcon icon={UserCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>PROFILE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToSettings}>
-          <HugeiconsIcon icon={Settings01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav
+        activeTab="post"
+        onPressHome={onBack}
+        onPressDrops={onNavigateToNotifications}
+        onPressProfile={onNavigateToProfile}
+        onPressSettings={onNavigateToSettings}
+      />
     </View>
   );
 }
@@ -281,12 +265,5 @@ const styles = StyleSheet.create({
   disclaimer: { paddingHorizontal: 24, paddingVertical: 20, alignItems: 'center' },
   disclaimerLine: { fontSize: 11, color: 'rgba(46,74,62,0.35)', letterSpacing: 1, textAlign: 'center' },
 
-  nav: {
-    flexDirection: 'row', backgroundColor: '#F0F5F0',
-    paddingTop: 12, paddingBottom: 32,
-    borderTopWidth: 1, borderTopColor: 'rgba(46,74,62,0.1)',
-  },
-  navItem: { flex: 1, alignItems: 'center', gap: 4 },
-  navLabel: { fontSize: 10, color: '#8B8B8B', letterSpacing: 2 },
-  navLabelActive: { color: '#2E4A3E' },
+
 });

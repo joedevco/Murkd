@@ -1,7 +1,6 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import * as Notifications from 'expo-notifications';
 import { Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider } from './src/contexts/AuthContext';
@@ -18,7 +17,7 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import SplashScreen from './src/screens/SplashScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
-import { setupPushNotifications } from './src/lib/push-notifications';
+import { setupPushNotifications, setupNotificationHandler } from './src/lib/push-notifications';
 import { maybeRotateGhostTag } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
 
@@ -52,6 +51,8 @@ export default function App() {
   }
 
   useEffect(() => {
+    setupNotificationHandler().catch(() => {});
+
     Linking.getInitialURL().then(url => {
       if (url) handleRecoveryUrl(url);
     });
@@ -62,32 +63,33 @@ export default function App() {
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        setupPushNotifications(user.id);
+        setupPushNotifications();
         maybeRotateGhostTag();
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setupPushNotifications(session.user.id);
+        setupPushNotifications();
         maybeRotateGhostTag();
-      } else {
-        Notifications.dismissAllNotificationsAsync();
-        Notifications.setBadgeCountAsync(0);
       }
     });
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(async response => {
-      const data = response.notification.request.content.data;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && data?.screen === 'notifications') {
-        setScreen('notifications');
-      }
+    let responseListener;
+    import('expo-notifications').then(mod => {
+      const Notifications = mod.default || mod;
+      responseListener = Notifications.addNotificationResponseReceivedListener(async response => {
+        const data = response.notification.request.content.data;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && data?.screen === 'notifications') {
+          setScreen('notifications');
+        }
+      });
     });
 
     return () => {
       subscription.unsubscribe();
-      responseListener.remove();
+      if (responseListener) responseListener.remove();
       linkListener.remove();
     };
   }, []);
@@ -98,128 +100,125 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <AuthProvider>
+              <StatusBar style="dark" />
           {screen === 'splash' && (
             <SplashScreen onComplete={async () => {
               const done = await AsyncStorage.getItem('@onboarding_complete');
-              setScreen(done === 'true' ? 'login' : 'onboarding');
+              if (done !== 'true') {
+                setScreen('onboarding');
+                return;
+              }
+              const { data: { session } } = await supabase.auth.getSession();
+              setScreen(session ? 'home' : 'login');
             }} />
           )}
-          {screen === 'onboarding' && (
-            <>
-              <StatusBar style="light" />
-              <OnboardingScreen onComplete={async () => {
-                await AsyncStorage.setItem('@onboarding_complete', 'true');
-                setScreen('login');
-              }} />
-            </>
-          )}
-          {screen === 'login' && (
-            <>
-              <StatusBar style="light" />
-              <LoginScreen
-                onLogin={handleLoggedIn}
-                onRegister={() => setScreen('register')}
-                onForgotPassword={() => setScreen('forgot-password')}
-              />
-            </>
-          )}
-          {screen === 'forgot-password' && (
-            <>
-              <StatusBar style="light" />
-              <ForgotPasswordScreen onBack={() => setScreen('login')} />
-            </>
-          )}
-          {screen === 'reset-password' && (
-            <>
-              <StatusBar style="light" />
-              <ResetPasswordScreen onDone={() => setScreen('login')} />
-            </>
-          )}
-          {screen === 'register' && (
-            <>
-              <StatusBar style="light" />
-              <RegisterScreen
-                onRegister={handleLoggedIn}
-                onLogin={() => setScreen('login')}
-              />
-            </>
-          )}
-          {screen === 'home' && (
-            <>
-              <StatusBar style="light" />
-              <HomeScreen
-                refreshKey={refreshKey}
-                focusPostId={focusPostId}
-                onFocusHandled={() => setFocusPostId(null)}
-                onNavigateToPost={() => { setPrevScreen('home'); setScreen('post'); }}
-                onNavigateToNotifications={() => setScreen('notifications')}
-                onNavigateToProfile={() => setScreen('profile')}
-                onNavigateToSettings={() => setScreen('settings')}
-              />
-            </>
-          )}
-          {screen === 'profile' && (
-            <>
-              <ProfileScreen
-                onNavigateToHome={() => setScreen('home')}
-                onNavigateToPost={() => { setPrevScreen('profile'); setScreen('post'); }}
-                onNavigateToNotifications={() => setScreen('notifications')}
-                onNavigateToSettings={() => setScreen('settings')}
-              />
-            </>
-          )}
-          {screen === 'settings' && (
-            <>
-              <StatusBar style="light" />
-              <SettingsScreen
-                onNavigateToHome={() => setScreen('home')}
-                onNavigateToPost={() => { setPrevScreen('settings'); setScreen('post'); }}
-                onNavigateToNotifications={() => setScreen('notifications')}
-                onNavigateToProfile={() => { setPrevScreen('settings'); setScreen('profile'); }}
-                onNavigateToLogin={() => setScreen('login')}
-              />
-            </>
-          )}
-          {screen === 'notifications' && (
-            <>
-              <StatusBar style="light" />
-              <NotificationsScreen
-                onNavigateToHome={() => setScreen('home')}
-                onNavigateToPost={(postId) => {
-                  if (postId) {
-                    setFocusPostId(postId);
-                    setScreen('home');
-                  } else {
-                    setPrevScreen('notifications');
-                    setScreen('post');
-                  }
-                }}
-                onNavigateToProfile={() => { setPrevScreen('notifications'); setScreen('profile'); }}
-                onNavigateToSettings={() => { setPrevScreen('notifications'); setScreen('settings'); }}
-              />
-            </>
-          )}
-          {screen === 'post' && (
-            <>
-              <StatusBar style="light" />
-              <PostScreen
-                onBack={() => setScreen(prevScreen)}
-                onPostDone={() => {
-                  setRefreshKey(k => k + 1);
-                  setScreen(prevScreen);
-                }}
-                onNavigateToProfile={() => { setPrevScreen('post'); setScreen('profile'); }}
-                onNavigateToNotifications={() => { setPrevScreen('post'); setScreen('notifications'); }}
-                onNavigateToSettings={() => { setPrevScreen('post'); setScreen('settings'); }}
-              />
-            </>
-          )}
-        </AuthProvider>
-      </ThemeProvider>
-      </ErrorBoundary>
+              {screen === 'onboarding' && (
+                <>
+                  <OnboardingScreen onComplete={async () => {
+                    await AsyncStorage.setItem('@onboarding_complete', 'true');
+                    setScreen('login');
+                  }} />
+                </>
+              )}
+              {screen === 'login' && (
+                <>
+                  <LoginScreen
+                    onLogin={handleLoggedIn}
+                    onRegister={() => setScreen('register')}
+                    onForgotPassword={() => setScreen('forgot-password')}
+                  />
+                </>
+              )}
+              {screen === 'forgot-password' && (
+                <>
+                  <ForgotPasswordScreen onBack={() => setScreen('login')} />
+                </>
+              )}
+              {screen === 'reset-password' && (
+                <>
+                  <ResetPasswordScreen onDone={() => setScreen('login')} />
+                </>
+              )}
+              {screen === 'register' && (
+                <>
+                  <RegisterScreen
+                    onRegister={handleLoggedIn}
+                    onLogin={() => setScreen('login')}
+                  />
+                </>
+              )}
+              {screen === 'home' && (
+                <>
+                  <HomeScreen
+                    refreshKey={refreshKey}
+                    focusPostId={focusPostId}
+                    onFocusHandled={() => setFocusPostId(null)}
+                    onNavigateToPost={() => { setPrevScreen('home'); setScreen('post'); }}
+                    onNavigateToNotifications={() => setScreen('notifications')}
+                    onNavigateToProfile={() => setScreen('profile')}
+                    onNavigateToSettings={() => setScreen('settings')}
+                  />
+                </>
+              )}
+              {screen === 'profile' && (
+                <>
+                  <ProfileScreen
+                    onNavigateToHome={() => setScreen('home')}
+                    onNavigateToPost={() => { setPrevScreen('profile'); setScreen('post'); }}
+                    onNavigateToNotifications={() => setScreen('notifications')}
+                    onNavigateToSettings={() => setScreen('settings')}
+                  />
+                </>
+              )}
+              {screen === 'settings' && (
+                <>
+                  <SettingsScreen
+                    onNavigateToHome={() => setScreen('home')}
+                    onNavigateToPost={() => { setPrevScreen('settings'); setScreen('post'); }}
+                    onNavigateToNotifications={() => setScreen('notifications')}
+                    onNavigateToProfile={() => { setPrevScreen('settings'); setScreen('profile'); }}
+                    onNavigateToLogin={() => setScreen('login')}
+                  />
+                </>
+              )}
+              {screen === 'notifications' && (
+                <>
+                  <NotificationsScreen
+                    onNavigateToHome={() => setScreen('home')}
+                    onNavigateToPost={(postId) => {
+                      if (postId) {
+                        setFocusPostId(postId);
+                        setScreen('home');
+                      } else {
+                        setPrevScreen('notifications');
+                        setScreen('post');
+                      }
+                    }}
+                    onNavigateToProfile={() => { setPrevScreen('notifications'); setScreen('profile'); }}
+                    onNavigateToSettings={() => { setPrevScreen('notifications'); setScreen('settings'); }}
+                  />
+                </>
+              )}
+              {screen === 'post' && (
+                <>
+                  <PostScreen
+                    onBack={() => setScreen(prevScreen)}
+                    onPostDone={() => {
+                      setRefreshKey(k => k + 1);
+                      setScreen(prevScreen);
+                    }}
+                    onNavigateToProfile={() => { setPrevScreen('post'); setScreen('profile'); }}
+                    onNavigateToNotifications={() => { setPrevScreen('post'); setScreen('notifications'); }}
+                    onNavigateToSettings={() => { setPrevScreen('post'); setScreen('settings'); }}
+                  />
+                </>
+              )}
+            </AuthProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

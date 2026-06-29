@@ -3,12 +3,19 @@ import {
   Animated, Modal, PanResponder, RefreshControl, ScrollView, StatusBar, StyleSheet, Text,
   TouchableOpacity, View,
 } from 'react-native';
-import { Home01Icon, AddCircleIcon, BellIcon, UserCircleIcon, Settings01Icon, Fire02Icon, HandshakeIcon, Notification03Icon } from '@hugeicons/core-free-icons';
+import { BellIcon, Fire02Icon, HandshakeIcon, Sad01Icon, LaughingIcon, Notification03Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react-native';
-import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
+
+let _Haptics: any;
+function getHaptics() {
+  if (!_Haptics) _Haptics = require('expo-haptics');
+  return _Haptics;
+}
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchNotifications, markNotificationRead, deleteNotification, markAllNotificationsRead } from '../lib/api';
+import { supabase } from '../lib/supabase';
+import BottomNav from '../components/BottomNav';
 
 interface Props {
   onNavigateToHome?: () => void;
@@ -19,7 +26,7 @@ interface Props {
 
 interface NotificationItem {
   id: string;
-  type: 'like' | 'handshake' | 'announcement';
+  type: 'like' | 'handshake' | 'sad' | 'funny' | 'announcement';
   actor_ghost_tag: string;
   post_preview: string;
   created_at: string;
@@ -53,14 +60,19 @@ function SwipeableNotif({
 
   const isLike = item.type === 'like';
   const isAnnouncement = item.type === 'announcement';
-  const iconColor = isLike ? '#E83D3D' : isAnnouncement ? '#2E86C1' : '#2E7D6E';
-  const iconBg = isLike ? 'rgba(232,61,61,0.08)' : isAnnouncement ? 'rgba(46,134,193,0.08)' : 'rgba(46,125,110,0.08)';
-  const icon = isLike ? Fire02Icon : isAnnouncement ? Notification03Icon : HandshakeIcon;
+  const isSad = item.type === 'sad';
+  const iconColor = isLike ? '#E83D3D' : isAnnouncement ? '#2E86C1' : isSad ? '#9B59B6' : item.type === 'funny' ? '#E67E22' : '#2E7D6E';
+  const iconBg = isLike ? 'rgba(232,61,61,0.08)' : isAnnouncement ? 'rgba(46,134,193,0.08)' : isSad ? 'rgba(155,89,182,0.08)' : item.type === 'funny' ? 'rgba(230,126,34,0.08)' : 'rgba(46,125,110,0.08)';
+  const icon = isLike ? Fire02Icon : isAnnouncement ? Notification03Icon : isSad ? Sad01Icon : item.type === 'funny' ? LaughingIcon : HandshakeIcon;
 
   const notifTitle = isLike
     ? 'Someone liked your confession'
     : isAnnouncement
     ? item.actor_ghost_tag
+    : isSad
+    ? 'Someone reacted sad to your confession'
+    : item.type === 'funny'
+    ? 'Someone reacted funny to your confession'
     : 'Someone handshaked your confession';
 
   const springTo = (toValue: number) => {
@@ -88,7 +100,7 @@ function SwipeableNotif({
       onPanResponderRelease: (_, g) => {
         const landed = currentX.current + g.dx;
         if (landed < SWIPE_THRESHOLD) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          getHaptics().impactAsync(getHaptics().ImpactFeedbackStyle.Light);
           springTo(-ACTION_WIDTH);
         } else {
           springTo(0);
@@ -193,6 +205,29 @@ export default function NotificationsScreen({ onNavigateToHome, onNavigateToPost
   }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel('notifications_live:' + user.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const newNotif = payload.new as Record<string, unknown>;
+        setNotifications(prev => {
+          if (prev.some(n => n.id === String(newNotif.id))) return prev;
+          return [{
+            id: String(newNotif.id),
+            type: newNotif.type as NotificationItem['type'],
+            actor_ghost_tag: (newNotif.actor_ghost_tag as string) ?? '',
+            post_preview: (newNotif.post_preview as string) ?? '',
+            created_at: newNotif.created_at as string,
+            read: newNotif.read as boolean,
+            post_id: newNotif.post_id as string | null,
+          }, ...prev];
+        });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -301,28 +336,13 @@ export default function NotificationsScreen({ onNavigateToHome, onNavigateToPost
         )}
       </ScrollView>
 
-      <View style={[styles.nav, { backgroundColor: colors.nav, borderTopColor: colors.navBorder }]}>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToHome}>
-          <HugeiconsIcon icon={Home01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => onNavigateToPost?.()}>
-          <HugeiconsIcon icon={AddCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>POST</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <HugeiconsIcon icon={BellIcon} size={24} color={colors.text} />
-          <Text style={[styles.navLabel, { color: colors.text }]}>DROPS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToProfile}>
-          <HugeiconsIcon icon={UserCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>PROFILE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToSettings}>
-          <HugeiconsIcon icon={Settings01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav
+        activeTab="drops"
+        onPressHome={onNavigateToHome}
+        onPressPost={() => onNavigateToPost?.()}
+        onPressProfile={onNavigateToProfile}
+        onPressSettings={onNavigateToSettings}
+      />
 
       <Modal
         visible={!!selectedAnnouncement}
@@ -380,9 +400,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: 10, marginTop: 80, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 2.5 },
   emptySub: { fontSize: 13, lineHeight: 20, textAlign: 'center', letterSpacing: 0.3 },
-  nav: { flexDirection: 'row', paddingTop: 12, paddingBottom: 32, borderTopWidth: 0.5 },
-  navItem: { flex: 1, alignItems: 'center', gap: 4 },
-  navLabel: { fontSize: 10, letterSpacing: 2 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalCard: { width: '100%', maxWidth: 400, borderRadius: 24, paddingTop: 8, paddingHorizontal: 28, paddingBottom: 28, maxHeight: '85%' },
   modalX: { position: 'absolute', top: 12, right: 12, zIndex: 10, padding: 6 },

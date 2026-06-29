@@ -71,7 +71,7 @@ We implement industry-standard security measures including encrypted data transm
 
 12. Contact
 
-For questions about this Privacy Policy, contact us at murkdapp@yahoo.com`;
+For questions about this Privacy Policy, contact us at murkdapp@gmail.com`;
 
 interface Props {
   onRegister: () => void;

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Home01Icon, AddCircleIcon, BellIcon, UserCircleIcon, Settings01Icon, Fire02Icon, HandshakeIcon, Clock01Icon, GhostIcon } from '@hugeicons/core-free-icons';
+import { Fire02Icon, HandshakeIcon, Sad01Icon, LaughingIcon, Clock01Icon, GhostIcon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchUserStats, fetchUserPosts, fetchFreezeGhostTag, type Post } from '../lib/api';
+import BottomNav from '../components/BottomNav';
+import { SkeletonBox, PostSkeleton } from '../components/Skeletons';
 
 interface Props {
   onNavigateToHome?: () => void;
@@ -19,12 +21,20 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
   const [stats, setStats] = useState({ postCount: 0, totalLikes: 0, resonance: 0 });
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [frozen, setFrozen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user?.id) {
-      fetchUserStats(user.id).then(setStats);
-      fetchUserPosts(user.id).then(setMyPosts);
-      fetchFreezeGhostTag().then(setFrozen);
+      setLoading(true);
+      Promise.all([
+        fetchUserStats(user.id),
+        fetchUserPosts(user.id),
+        fetchFreezeGhostTag(),
+      ]).then(([s, p, f]) => {
+        setStats(s);
+        setMyPosts(p);
+        setFrozen(f);
+      }).finally(() => setLoading(false));
     }
   }, [user?.id]);
 
@@ -42,6 +52,38 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
       </View>
       <View style={[styles.divider, { backgroundColor: colors.navBorder }]} />
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyInner}>
+        {loading ? (
+          <>
+            <View style={[styles.circle, { backgroundColor: theme === 'dark' ? '#2C2C2A' : '#DCE4DC', borderColor: colors.navBorder }]}>
+              <SkeletonBox width={40} height={40} borderRadius={20} />
+            </View>
+            <SkeletonBox width={100} height={18} borderRadius={3} style={{ marginTop: 16 }} />
+            <SkeletonBox width={140} height={12} borderRadius={3} style={{ marginTop: 6 }} />
+            <SkeletonBox width={140} height={11} borderRadius={3} style={{ marginTop: 10 }} />
+            <View style={[styles.innerDivider, { backgroundColor: colors.navBorder }]} />
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <SkeletonBox width={30} height={20} borderRadius={3} />
+                <SkeletonBox width={50} height={9} borderRadius={3} style={{ marginTop: 4 }} />
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: colors.navBorder }]} />
+              <View style={styles.statItem}>
+                <SkeletonBox width={30} height={20} borderRadius={3} />
+                <SkeletonBox width={50} height={9} borderRadius={3} style={{ marginTop: 4 }} />
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: colors.navBorder }]} />
+              <View style={styles.statItem}>
+                <SkeletonBox width={40} height={20} borderRadius={3} />
+                <SkeletonBox width={65} height={9} borderRadius={3} style={{ marginTop: 4 }} />
+              </View>
+            </View>
+            <View style={[styles.sectionDivider, { backgroundColor: colors.navBorder }]} />
+            <PostSkeleton />
+            <PostSkeleton />
+            <PostSkeleton />
+          </>
+        ) : (
+          <>
         <View style={[styles.circle, { backgroundColor: theme === 'dark' ? '#2C2C2A' : '#DCE4DC', borderColor: colors.navBorder }]}>
           <HugeiconsIcon icon={GhostIcon} size={40} color={colors.text} />
         </View>
@@ -134,6 +176,14 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
                       <HugeiconsIcon icon={HandshakeIcon} size={18} color={colors.textMuted} />
                       <Text style={[styles.reactionCount, { color: colors.textMuted }]}>{post.not_alone_count ?? 0}</Text>
                     </View>
+                    <View style={styles.reactionBtn}>
+                      <HugeiconsIcon icon={Sad01Icon} size={18} color={colors.textMuted} />
+                      <Text style={[styles.reactionCount, { color: colors.textMuted }]}>{post.sad_count ?? 0}</Text>
+                    </View>
+                    <View style={styles.reactionBtn}>
+                      <HugeiconsIcon icon={LaughingIcon} size={18} color={colors.textMuted} />
+                      <Text style={[styles.reactionCount, { color: colors.textMuted }]}>{post.funny_count ?? 0}</Text>
+                    </View>
 
                     <View style={styles.expiryRow}>
                       <HugeiconsIcon icon={Clock01Icon} size={12} color={colors.textMuted} />
@@ -155,30 +205,17 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
             </View>
           ))
         )}
+        </>
+      )}
       </ScrollView>
 
-      <View style={[styles.nav, { backgroundColor: colors.nav, borderTopColor: colors.navBorder }]}>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToHome}>
-          <HugeiconsIcon icon={Home01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToPost}>
-          <HugeiconsIcon icon={AddCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>POST</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToNotifications}>
-          <HugeiconsIcon icon={BellIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>DROPS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <HugeiconsIcon icon={UserCircleIcon} size={24} color={colors.text} />
-          <Text style={[styles.navLabel, { color: colors.text }]}>PROFILE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToSettings}>
-          <HugeiconsIcon icon={Settings01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav
+        activeTab="profile"
+        onPressHome={onNavigateToHome}
+        onPressPost={onNavigateToPost}
+        onPressDrops={onNavigateToNotifications}
+        onPressSettings={onNavigateToSettings}
+      />
     </View>
   );
 }
@@ -262,8 +299,4 @@ const styles = StyleSheet.create({
   expiryRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 'auto' as any },
   expiryText: { fontSize: 10, color: '#8B8B8B', letterSpacing: 0.5 },
   postDivider: { height: 1, backgroundColor: 'rgba(46, 74, 62, 0.1)' },
-  nav: { flexDirection: 'row', backgroundColor: '#F0F5F0', paddingTop: 12, paddingBottom: 32, borderTopWidth: 1, borderTopColor: 'rgba(46, 74, 62, 0.1)' },
-  navItem: { flex: 1, alignItems: 'center', gap: 4 },
-  navLabel: { fontSize: 10, color: '#8B8B8B', letterSpacing: 2 },
-  navLabelActive: { color: '#2E4A3E' },
 });

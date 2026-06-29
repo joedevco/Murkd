@@ -1,8 +1,4 @@
 import { supabase } from './supabase';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config';
 
 async function getAuthHeaders() {
@@ -26,6 +22,8 @@ export interface Post {
   edited_at: string | null;
   like_count: number;
   not_alone_count: number;
+  sad_count: number;
+  funny_count: number;
   pending?: boolean;
   failed?: boolean;
   justExpired?: boolean;
@@ -34,47 +32,12 @@ export interface Post {
 export interface NotificationPreferences {
   likes: boolean;
   handshakes: boolean;
+  sad: boolean;
+  funny: boolean;
   announcements: boolean;
 }
 
 export const PAGE_SIZE = 20;
-
-export async function registerPushToken() {
-  if (!Device.isDevice) return;
-
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== 'granted') return;
-
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-    });
-  }
-
-  try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-
-    const { data } = await supabase.auth.getSession();
-    const userId = data?.session?.user?.id;
-    if (!userId) return;
-
-    const { error } = await supabase
-      .from('push_tokens')
-      .upsert(
-        { user_id: userId, push_token: token, platform: Platform.OS },
-        { onConflict: 'user_id' }
-      );
-
-    if (error) {
-      console.error('savePushToken: upsert error', error);
-    }
-  } catch (e) {
-    console.error('registerForPushNotifications: error', e);
-  }
-}
 
 export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
   const { data } = await supabase
@@ -82,7 +45,8 @@ export async function getNotificationPreferences(userId: string): Promise<Notifi
     .select('notification_preferences')
     .eq('id', userId)
     .single();
-  return data?.notification_preferences ?? { likes: true, handshakes: true, announcements: true };
+  const defaults = { likes: true, handshakes: true, sad: true, funny: true, announcements: true };
+  return { ...defaults, ...(data?.notification_preferences ?? {}) };
 }
 
 export async function updateNotificationPreferences(userId: string, prefs: NotificationPreferences) {
@@ -150,17 +114,23 @@ export async function fetchPosts(userId?: string | null, offset = 0, showExpired
 
   let likedPostIds: string[] = [];
   let notAlonePostIds: string[] = [];
+  let sadPostIds: string[] = [];
+  let funnyPostIds: string[] = [];
 
   if (userId) {
-    const [lRes, nRes] = await Promise.all([
+    const [lRes, nRes, sRes, fRes] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/likes?select=post_id&user_id=eq.${userId}`, { headers }),
       fetch(`${SUPABASE_URL}/rest/v1/not_alone?select=post_id&user_id=eq.${userId}`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/sads?select=post_id&user_id=eq.${userId}`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/funnies?select=post_id&user_id=eq.${userId}`, { headers }),
     ]);
     if (lRes.ok) likedPostIds = (await lRes.json()).map((l: any) => l.post_id);
     if (nRes.ok) notAlonePostIds = (await nRes.json()).map((n: any) => n.post_id);
+    if (sRes.ok) sadPostIds = (await sRes.json()).map((s: any) => s.post_id);
+    if (fRes.ok) funnyPostIds = (await fRes.json()).map((f: any) => f.post_id);
   }
 
-  return { posts, likedPostIds, notAlonePostIds, hasMore: posts.length === PAGE_SIZE };
+  return { posts, likedPostIds, notAlonePostIds, sadPostIds, funnyPostIds, hasMore: posts.length === PAGE_SIZE };
 }
 
 export async function toggleLike(postId: string, liked: boolean) {
@@ -239,6 +209,98 @@ export async function toggleNotAlone(postId: string, reacted: boolean) {
             body: {
               user_id: post.user_id,
               type: 'handshake',
+              actor_ghost_tag: post.ghost_tag,
+              post_preview: post.content.substring(0, 80),
+              post_id: postId,
+            },
+          });
+          if (pushError) {
+            console.error('send-push invoke error', pushError);
+          } else if (__DEV__ && pushResult?.expoResponses) {
+            console.log('Expo push responses:', JSON.stringify(pushResult.expoResponses));
+          }
+        }
+      })
+      .catch(e => console.error('fetch post for push error', e));
+  }
+}
+
+export async function toggleSad(postId: string, reacted: boolean) {
+  const { data } = await supabase.auth.getSession();
+  const userId = data?.session?.user?.id;
+  if (!userId) throw new Error('Not authenticated');
+  const headers = await getAuthHeaders();
+
+  if (reacted) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/sads?post_id=eq.${postId}&user_id=eq.${userId}`,
+      { method: 'DELETE', headers },
+    );
+    if (!res.ok) throw new Error(`Sad remove failed: ${res.status}`);
+  } else {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/sads`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ post_id: postId, user_id: userId }),
+    });
+    if (!res.ok) throw new Error(`Sad add failed: ${res.status}`);
+
+    fetch(`${SUPABASE_URL}/rest/v1/posts?id=eq.${postId}&select=user_id,content,ghost_tag`, { headers })
+      .then(r => r.json())
+      .then(async ([post]) => {
+        if (post && post.user_id !== userId) {
+          const prefs = await getNotificationPreferences(post.user_id);
+          if (!prefs.sad) return;
+          const { data: pushResult, error: pushError } = await supabase.functions.invoke('send-push', {
+            body: {
+              user_id: post.user_id,
+              type: 'sad',
+              actor_ghost_tag: post.ghost_tag,
+              post_preview: post.content.substring(0, 80),
+              post_id: postId,
+            },
+          });
+          if (pushError) {
+            console.error('send-push invoke error', pushError);
+          } else if (__DEV__ && pushResult?.expoResponses) {
+            console.log('Expo push responses:', JSON.stringify(pushResult.expoResponses));
+          }
+        }
+      })
+      .catch(e => console.error('fetch post for push error', e));
+  }
+}
+
+export async function toggleFunny(postId: string, reacted: boolean) {
+  const { data } = await supabase.auth.getSession();
+  const userId = data?.session?.user?.id;
+  if (!userId) throw new Error('Not authenticated');
+  const headers = await getAuthHeaders();
+
+  if (reacted) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/funnies?post_id=eq.${postId}&user_id=eq.${userId}`,
+      { method: 'DELETE', headers },
+    );
+    if (!res.ok) throw new Error(`Funny remove failed: ${res.status}`);
+  } else {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/funnies`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ post_id: postId, user_id: userId }),
+    });
+    if (!res.ok) throw new Error(`Funny add failed: ${res.status}`);
+
+    fetch(`${SUPABASE_URL}/rest/v1/posts?id=eq.${postId}&select=user_id,content,ghost_tag`, { headers })
+      .then(r => r.json())
+      .then(async ([post]) => {
+        if (post && post.user_id !== userId) {
+          const prefs = await getNotificationPreferences(post.user_id);
+          if (!prefs.funny) return;
+          const { data: pushResult, error: pushError } = await supabase.functions.invoke('send-push', {
+            body: {
+              user_id: post.user_id,
+              type: 'funny',
               actor_ghost_tag: post.ghost_tag,
               post_preview: post.content.substring(0, 80),
               post_id: postId,

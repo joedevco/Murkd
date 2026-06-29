@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Home01Icon, AddCircleIcon, BellIcon, UserCircleIcon, Settings01Icon, GhostIcon, Alert02Icon } from '@hugeicons/core-free-icons';
+import { GhostIcon, Alert02Icon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getNotificationPreferences, updateNotificationPreferences, fetchIsAdmin, sendAnnouncement, fetchBlockedGhosts, unblockGhost } from '../lib/api';
+import BottomNav from '../components/BottomNav';
 
 interface Props {
   onNavigateToHome?: () => void;
@@ -71,7 +72,7 @@ We implement industry-standard security measures including encrypted data transm
 
 12. Contact
 
-For questions about this Privacy Policy, contact us at murkdapp@yahoo.com`;
+For questions about this Privacy Policy, contact us at murkdapp@gmail.com`;
 
 const termsContent = `Terms of Service
 
@@ -119,11 +120,12 @@ We may update these terms at any time. Continued use after changes constitutes a
 
 11. Contact
 
-For questions, contact us at murkdapp@yahoo.com`;
+For questions, contact us at murkdapp@gmail.com`;
 
 const TAG_OPTIONS = ['ALL', 'WORK', 'RELATIONSHIPS', 'FAMILY', 'MENTAL HEALTH', 'MONEY', 'SECRET', 'REGRET', 'OTHER'];
 
 export default function SettingsScreen({ onNavigateToHome, onNavigateToPost, onNavigateToNotifications, onNavigateToProfile, onNavigateToLogin }: Props) {
+  const Constants = require('expo-constants');
   const { user, signOut, deleteAccount } = useAuth();
   const [policyType, setPolicyType] = useState<'privacy' | 'terms' | null>(null);
   const [defaultTag, setDefaultTag] = useState('ALL');
@@ -136,6 +138,8 @@ export default function SettingsScreen({ onNavigateToHome, onNavigateToPost, onN
   const [notifAnnouncements, setNotifAnnouncements] = useState(true);
   const [notifLikes, setNotifLikes] = useState(true);
   const [notifHandshakes, setNotifHandshakes] = useState(true);
+  const [notifSad, setNotifSad] = useState(true);
+  const [notifFunny, setNotifFunny] = useState(true);
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminLoading, setAdminLoading] = useState(true);
@@ -152,7 +156,7 @@ const [changingPassword, setChangingPassword] = useState(false);
   const [blockedGhosts, setBlockedGhosts] = useState<{ id: string; blocked_user_id: string; blocked_ghost_tag: string; created_at: string }[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
 
-  const privacyEmail = 'murkdapp@yahoo.com';
+  const privacyEmail = 'murkdapp@gmail.com';
 
   useEffect(() => {
     // Load local prefs immediately for instant UI
@@ -161,6 +165,8 @@ const [changingPassword, setChangingPassword] = useState(false);
     AsyncStorage.getItem('notifAnnouncements').then(val => { if (val === 'false') setNotifAnnouncements(false); });
     AsyncStorage.getItem('notifLikes').then(val => { if (val === 'false') setNotifLikes(false); });
     AsyncStorage.getItem('notifHandshakes').then(val => { if (val === 'false') setNotifHandshakes(false); });
+    AsyncStorage.getItem('notifSad').then(val => { if (val === 'false') setNotifSad(false); });
+    AsyncStorage.getItem('notifFunny').then(val => { if (val === 'false') setNotifFunny(false); });
 
     // Then sync from Supabase to get the authoritative values
     if (user?.id) {
@@ -168,10 +174,14 @@ const [changingPassword, setChangingPassword] = useState(false);
         .then(prefs => {
           setNotifLikes(prefs.likes);
           setNotifHandshakes(prefs.handshakes);
+          setNotifSad(prefs.sad);
+          setNotifFunny(prefs.funny);
           setNotifAnnouncements(prefs.announcements);
           // Keep AsyncStorage in sync
           AsyncStorage.setItem('notifLikes', prefs.likes ? 'true' : 'false');
           AsyncStorage.setItem('notifHandshakes', prefs.handshakes ? 'true' : 'false');
+          AsyncStorage.setItem('notifSad', prefs.sad ? 'true' : 'false');
+          AsyncStorage.setItem('notifFunny', prefs.funny ? 'true' : 'false');
           AsyncStorage.setItem('notifAnnouncements', prefs.announcements ? 'true' : 'false');
         })
         .catch(() => {}) // silently fall back to AsyncStorage values
@@ -187,7 +197,7 @@ const [changingPassword, setChangingPassword] = useState(false);
   }, [user?.id]);
 
   const handleNotifToggle = async (
-    key: 'likes' | 'handshakes' | 'announcements',
+    key: 'likes' | 'handshakes' | 'sad' | 'funny' | 'announcements',
     current: boolean,
     setter: (v: boolean) => void
   ) => {
@@ -199,6 +209,8 @@ const [changingPassword, setChangingPassword] = useState(false);
       const prefs = {
         likes: key === 'likes' ? next : notifLikes,
         handshakes: key === 'handshakes' ? next : notifHandshakes,
+        sad: key === 'sad' ? next : notifSad,
+        funny: key === 'funny' ? next : notifFunny,
         announcements: key === 'announcements' ? next : notifAnnouncements,
       };
       await updateNotificationPreferences(user.id, prefs);
@@ -349,6 +361,26 @@ const [changingPassword, setChangingPassword] = useState(false);
               <Text style={[styles.settingText, { color: colors.text }]}>Handshakes</Text>
               <Text style={[styles.settingValue, { color: colors.textMuted }]}>{prefsLoading ? '...' : notifHandshakes ? 'ON' : 'OFF'}</Text>
             </TouchableOpacity>
+            <View style={[styles.settingDivider, { backgroundColor: colors.navBorder }]} />
+            <TouchableOpacity
+              style={styles.settingRow}
+              activeOpacity={0.6}
+              disabled={prefsLoading}
+              onPress={() => handleNotifToggle('sad', notifSad, setNotifSad)}
+            >
+              <Text style={[styles.settingText, { color: colors.text }]}>Sad</Text>
+              <Text style={[styles.settingValue, { color: colors.textMuted }]}>{prefsLoading ? '...' : notifSad ? 'ON' : 'OFF'}</Text>
+            </TouchableOpacity>
+            <View style={[styles.settingDivider, { backgroundColor: colors.navBorder }]} />
+            <TouchableOpacity
+              style={styles.settingRow}
+              activeOpacity={0.6}
+              disabled={prefsLoading}
+              onPress={() => handleNotifToggle('funny', notifFunny, setNotifFunny)}
+            >
+              <Text style={[styles.settingText, { color: colors.text }]}>Funny</Text>
+              <Text style={[styles.settingValue, { color: colors.textMuted }]}>{prefsLoading ? '...' : notifFunny ? 'ON' : 'OFF'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -385,7 +417,7 @@ const [changingPassword, setChangingPassword] = useState(false);
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ABOUT</Text>
             <TouchableOpacity style={styles.settingRow} activeOpacity={0.6}>
               <Text style={[styles.settingText, { color: colors.text }]}>Version</Text>
-              <Text style={[styles.settingValue, { color: colors.textMuted }]}>1.0.0</Text>
+              <Text style={[styles.settingValue, { color: colors.textMuted }]}>{Constants.expoConfig?.version ?? '1.0.1'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -491,28 +523,13 @@ const [changingPassword, setChangingPassword] = useState(false);
         </View>
       </Modal>
 
-      <View style={[styles.nav, { backgroundColor: colors.nav, borderTopColor: colors.navBorder }]}>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToHome}>
-          <HugeiconsIcon icon={Home01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToPost}>
-          <HugeiconsIcon icon={AddCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>POST</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToNotifications}>
-          <HugeiconsIcon icon={BellIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>DROPS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToProfile}>
-          <HugeiconsIcon icon={UserCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>PROFILE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <HugeiconsIcon icon={Settings01Icon} size={24} color={colors.text} />
-          <Text style={[styles.navLabel, { color: colors.text }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav
+        activeTab="settings"
+        onPressHome={onNavigateToHome}
+        onPressPost={onNavigateToPost}
+        onPressDrops={onNavigateToNotifications}
+        onPressProfile={onNavigateToProfile}
+      />
 
       <Modal visible={showTagPicker} transparent animationType="fade" onRequestClose={() => setShowTagPicker(false)}>
         <KeyboardAvoidingView style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -690,10 +707,6 @@ const styles = StyleSheet.create({
   settingText: { fontSize: 14, color: '#2E4A3E', fontWeight: '500' },
   settingValue: { fontSize: 14, color: '#8B8B8B', fontWeight: '500' },
   settingDivider: { height: 1, backgroundColor: 'rgba(46, 74, 62, 0.08)' },
-  nav: { flexDirection: 'row', backgroundColor: '#F0F5F0', paddingTop: 12, paddingBottom: 32, borderTopWidth: 1, borderTopColor: 'rgba(46, 74, 62, 0.1)' },
-  navItem: { flex: 1, alignItems: 'center', gap: 4 },
-  navLabel: { fontSize: 10, color: '#8B8B8B', letterSpacing: 2 },
-  navLabelActive: { color: '#2E4A3E' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   pickerBox: { backgroundColor: '#E8EDE8', borderRadius: 12, padding: 24, width: '80%', gap: 16 },
   pickerList: { gap: 4 },

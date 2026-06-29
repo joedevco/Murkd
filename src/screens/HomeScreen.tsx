@@ -16,17 +16,29 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+let _Haptics: any;
+function getHaptics() {
+  if (!_Haptics) _Haptics = require('expo-haptics');
+  return _Haptics;
+}
+let _Clipboard: any;
+function getClipboard() {
+  if (!_Clipboard) _Clipboard = require('expo-clipboard');
+  return _Clipboard;
+}
+
 import {
-  Home01Icon, AddCircleIcon, UserCircleIcon, Settings01Icon,
   Delete02Icon, Flag02Icon, Fire02Icon, Clock01Icon, Refresh01Icon,
-  WifiOff01Icon, Alert02Icon, HandshakeIcon, BellIcon,
+  WifiOff01Icon, Alert02Icon, HandshakeIcon,
+  Sad01Icon, LaughingIcon,
 } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react-native';
-import { fetchPosts, fetchPostById, toggleLike, toggleNotAlone, deletePost, updatePost, reportPost, blockGhost, fetchBlockedGhosts, Post, PAGE_SIZE } from '../lib/api';
+import { fetchPosts, fetchPostById, toggleLike, toggleNotAlone, toggleSad, toggleFunny, deletePost, updatePost, reportPost, blockGhost, fetchBlockedGhosts, Post, PAGE_SIZE } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import BottomNav from '../components/BottomNav';
+import { PostSkeleton } from '../components/Skeletons';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface Props {
@@ -39,61 +51,7 @@ interface Props {
   onNavigateToNotifications?: () => void;
 }
 
-// ── Skeleton shimmer ────────────────────────────────────────────────────────
 
-function SkeletonBox({ width, height, borderRadius = 4, style }: {
-  width: number | string; height: number; borderRadius?: number; style?: object;
-}) {
-  const shimmer = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [shimmer]);
-  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
-  return <Animated.View style={[{ width, height, borderRadius, backgroundColor: '#2E4A3E', opacity }, style]} />;
-}
-
-function PostSkeleton() {
-  return (
-    <View>
-      <View style={skeletonStyles.postPadding}>
-        <View style={skeletonStyles.headerRow}>
-          <View style={skeletonStyles.headerLeft}>
-            <SkeletonBox width={72} height={10} borderRadius={3} />
-            <SkeletonBox width={40} height={8} borderRadius={3} style={{ marginLeft: 8 }} />
-          </View>
-          <SkeletonBox width={32} height={10} borderRadius={3} />
-        </View>
-        <View style={skeletonStyles.contentBlock}>
-          <SkeletonBox width="100%" height={13} borderRadius={3} />
-          <SkeletonBox width="88%" height={13} borderRadius={3} style={{ marginTop: 7 }} />
-          <SkeletonBox width="60%" height={13} borderRadius={3} style={{ marginTop: 7 }} />
-        </View>
-        <View style={skeletonStyles.reactionsRow}>
-          <SkeletonBox width={40} height={10} borderRadius={3} />
-          <SkeletonBox width={40} height={10} borderRadius={3} />
-          <SkeletonBox width={28} height={10} borderRadius={3} style={{ marginLeft: 'auto' as any }} />
-        </View>
-      </View>
-      <View style={skeletonStyles.divider} />
-    </View>
-  );
-}
-
-const skeletonStyles = StyleSheet.create({
-  postPadding: { paddingHorizontal: 32, paddingVertical: 20, gap: 12 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  contentBlock: { gap: 0 },
-  reactionsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 16 },
-  divider: { height: 1, backgroundColor: 'rgba(46, 74, 62, 0.1)' },
-});
 
 // ── Swipeable post row ───────────────────────────────────────────────────────
 
@@ -107,9 +65,13 @@ interface SwipeablePostProps {
   canEdit: boolean;
   liked: boolean;
   notAlone: boolean;
+  sad: boolean;
+  funny: boolean;
   isFocused: boolean;
   onLike: () => void;
   onNotAlone: () => void;
+  onSad: () => void;
+  onFunny: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onReport: () => void;
@@ -119,9 +81,10 @@ interface SwipeablePostProps {
 }
 
 function SwipeablePost({
-  post, isOwner, isDeleting, canEdit, liked, notAlone, isFocused, surfaceColor,
-  onLike, onNotAlone, onDelete, onEdit, onReport, onBlock, onCopy,
+  post, isOwner, isDeleting, canEdit, liked, notAlone, sad, funny, isFocused, surfaceColor,
+  onLike, onNotAlone, onSad, onFunny, onDelete, onEdit, onReport, onBlock, onCopy,
 }: SwipeablePostProps) {
+  const { colors, theme } = useTheme();
   const revealWidth = isOwner ? (canEdit ? ACTION_WIDTH * 2 : ACTION_WIDTH) : ACTION_WIDTH * 2;
   const translateX = useRef(new Animated.Value(0)).current;
   const currentX = useRef(0);
@@ -141,7 +104,7 @@ function SwipeablePost({
 
   const highlightColor = highlightAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [surfaceColor, '#D4ECD4'],
+    outputRange: [surfaceColor, theme === 'dark' ? '#2A2A2A' : '#D4ECD4'],
   });
 
   const springTo = (toValue: number) => {
@@ -165,7 +128,7 @@ function SwipeablePost({
         const rw = revealWidthRef.current;
         const landed = currentX.current + g.dx;
         if (landed < -SWIPE_THRESHOLD) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          getHaptics().impactAsync(getHaptics().ImpactFeedbackStyle.Light);
           springTo(-rw);
         } else {
           springTo(0);
@@ -213,8 +176,8 @@ function SwipeablePost({
           <View style={styles.postCard}>
             <View style={styles.postHeader}>
               <View style={styles.postHeaderLeft}>
-                <Text style={styles.postTag}>{post.ghost_tag?.replace('@', '')}</Text>
-                <Text style={styles.postTime}>
+                <Text style={[styles.postTag, { color: colors.text }]}>{post.ghost_tag?.replace('@', '')}</Text>
+                <Text style={[styles.postTime, { color: colors.textMuted }]}>
                   {(() => {
                     const diff = Date.now() - new Date(post.created_at).getTime();
                     const mins = Math.floor(diff / (1000 * 60));
@@ -224,7 +187,7 @@ function SwipeablePost({
                     return `${hours}h ago`;
                   })()}
                 </Text>
-                {post.edited_at && <Text style={styles.editedLabel}>edited</Text>}
+                {post.edited_at && <Text style={[styles.editedLabel, { color: colors.textMuted }]}>edited</Text>}
               </View>
               {post.tag && (
                 <View style={styles.postHeaderRight}>
@@ -234,7 +197,7 @@ function SwipeablePost({
             </View>
 
             <TouchableOpacity activeOpacity={1} delayLongPress={400} onLongPress={onCopy} onPress={() => {}}>
-              <Text style={styles.postContent}>{post.content}</Text>
+              <Text style={[styles.postContent, { color: colors.text }]}>{post.content}</Text>
             </TouchableOpacity>
 
             <View style={styles.reactionsRow}>
@@ -246,9 +209,17 @@ function SwipeablePost({
                 <HugeiconsIcon icon={HandshakeIcon} size={18} color={notAlone ? '#2E7D6E' : '#8B8B8B'} />
                 <Text style={[styles.reactionCount, notAlone && { color: '#2E7D6E' }]}>{post.not_alone_count ?? 0}</Text>
               </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.6} onPress={onSad} style={styles.reactionBtn}>
+                <HugeiconsIcon icon={Sad01Icon} size={18} color={sad ? '#9B59B6' : '#8B8B8B'} />
+                <Text style={[styles.reactionCount, sad && { color: '#9B59B6' }]}>{post.sad_count ?? 0}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.6} onPress={onFunny} style={styles.reactionBtn}>
+                <HugeiconsIcon icon={LaughingIcon} size={18} color={funny ? '#E67E22' : '#8B8B8B'} />
+                <Text style={[styles.reactionCount, funny && { color: '#E67E22' }]}>{post.funny_count ?? 0}</Text>
+              </TouchableOpacity>
               <View style={styles.expiryRow}>
                 <HugeiconsIcon icon={Clock01Icon} size={12} color="#8B8B8B" />
-                <Text style={styles.expiryText}>
+                <Text style={[styles.expiryText, { color: colors.textMuted }]}>
                   {(() => {
                     const remaining = new Date(post.expires_at).getTime() - Date.now();
                     if (remaining <= 0) return 'expiring...';
@@ -269,7 +240,7 @@ function SwipeablePost({
 
 const swipeStyles = StyleSheet.create({
   wrapper: { overflow: 'hidden' },
-  card: { backgroundColor: '#E8EDE8' },
+  card: {},
   actionContainer: { position: 'absolute', top: 0, bottom: 0, right: 0, flexDirection: 'row' },
   editAction: { backgroundColor: '#4A7A6A', flex: 1, height: '100%' },
   deleteAction: { backgroundColor: '#C0392B', flex: 1, height: '100%' },
@@ -299,6 +270,8 @@ export default function HomeScreen({
   const [serverError, setServerError] = useState(false);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [notAlonePosts, setNotAlonePosts] = useState<Set<string>>(new Set());
+  const [sadPosts, setSadPosts] = useState<Set<string>>(new Set());
+  const [funnyPosts, setFunnyPosts] = useState<Set<string>>(new Set());
   const [reportedPosts, setReportedPosts] = useState<Set<string>>(new Set());
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -388,6 +361,8 @@ export default function HomeScreen({
       .channel('notifications:' + userId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, () => setUnreadNotifications(true))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'not_alone' }, () => setUnreadNotifications(true))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sads' }, () => setUnreadNotifications(true))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'funnies' }, () => setUnreadNotifications(true))
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
@@ -421,10 +396,12 @@ export default function HomeScreen({
     setServerError(false);
     try {
       const showExpired = (await AsyncStorage.getItem('showExpired')) === 'true';
-      const { posts: fetchedPosts, likedPostIds, notAlonePostIds, hasMore: more } = await fetchPosts(userId, 0, showExpired);
+      const { posts: fetchedPosts, likedPostIds, notAlonePostIds, sadPostIds, funnyPostIds, hasMore: more } = await fetchPosts(userId, 0, showExpired);
       setPosts(fetchedPosts);
       setLikedPosts(new Set(likedPostIds));
       setNotAlonePosts(new Set(notAlonePostIds));
+      setSadPosts(new Set(sadPostIds));
+      setFunnyPosts(new Set(funnyPostIds));
       setOffset(fetchedPosts.length);
       setHasMore(more);
       setNewPostsCount(0);
@@ -441,10 +418,12 @@ export default function HomeScreen({
     setServerError(false);
     try {
       const showExpired = (await AsyncStorage.getItem('showExpired')) === 'true';
-      const { posts: fetchedPosts, likedPostIds, notAlonePostIds, hasMore: more } = await fetchPosts(userId, 0, showExpired);
+      const { posts: fetchedPosts, likedPostIds, notAlonePostIds, sadPostIds, funnyPostIds, hasMore: more } = await fetchPosts(userId, 0, showExpired);
       setPosts(fetchedPosts);
       setLikedPosts(new Set(likedPostIds));
       setNotAlonePosts(new Set(notAlonePostIds));
+      setSadPosts(new Set(sadPostIds));
+      setFunnyPosts(new Set(funnyPostIds));
       setOffset(fetchedPosts.length);
       setHasMore(more);
       setNewPostsCount(0);
@@ -461,13 +440,15 @@ export default function HomeScreen({
     setLoadingMore(true);
     try {
       const showExpired = (await AsyncStorage.getItem('showExpired')) === 'true';
-      const { posts: morePosts, likedPostIds, notAlonePostIds, hasMore: more } = await fetchPosts(userId, offset, showExpired);
+      const { posts: morePosts, likedPostIds, notAlonePostIds, sadPostIds, funnyPostIds, hasMore: more } = await fetchPosts(userId, offset, showExpired);
       setPosts(prev => {
         const existingIds = new Set(prev.map(p => p.id));
         return [...prev, ...morePosts.filter(p => !existingIds.has(p.id))];
       });
       setLikedPosts(prev => new Set([...prev, ...likedPostIds]));
       setNotAlonePosts(prev => new Set([...prev, ...notAlonePostIds]));
+      setSadPosts(prev => new Set([...prev, ...sadPostIds]));
+      setFunnyPosts(prev => new Set([...prev, ...funnyPostIds]));
       setOffset(prev => prev + morePosts.length);
       setHasMore(more);
     } catch { } finally {
@@ -477,7 +458,7 @@ export default function HomeScreen({
 
   async function handleLike(postId: string) {
     const liked = likedPosts.has(postId);
-    liked ? await Haptics.selectionAsync() : await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    liked ? await getHaptics().selectionAsync() : await getHaptics().impactAsync(getHaptics().ImpactFeedbackStyle.Light);
     setLikedPosts(prev => { const n = new Set(prev); liked ? n.delete(postId) : n.add(postId); return n; });
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, like_count: Math.max(0, (p.like_count ?? 0) + (liked ? -1 : 1)) } : p));
     try {
@@ -490,7 +471,7 @@ export default function HomeScreen({
 
   async function handleNotAlone(postId: string) {
     const reacted = notAlonePosts.has(postId);
-    reacted ? await Haptics.selectionAsync() : await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    reacted ? await getHaptics().selectionAsync() : await getHaptics().impactAsync(getHaptics().ImpactFeedbackStyle.Medium);
     setNotAlonePosts(prev => { const n = new Set(prev); reacted ? n.delete(postId) : n.add(postId); return n; });
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, not_alone_count: Math.max(0, (p.not_alone_count ?? 0) + (reacted ? -1 : 1)) } : p));
     try {
@@ -498,6 +479,32 @@ export default function HomeScreen({
     } catch {
       setNotAlonePosts(prev => { const n = new Set(prev); reacted ? n.add(postId) : n.delete(postId); return n; });
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, not_alone_count: Math.max(0, (p.not_alone_count ?? 0) + (reacted ? 1 : -1)) } : p));
+    }
+  }
+
+  async function handleSad(postId: string) {
+    const reacted = sadPosts.has(postId);
+    reacted ? await getHaptics().selectionAsync() : await getHaptics().impactAsync(getHaptics().ImpactFeedbackStyle.Light);
+    setSadPosts(prev => { const n = new Set(prev); reacted ? n.delete(postId) : n.add(postId); return n; });
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, sad_count: Math.max(0, (p.sad_count ?? 0) + (reacted ? -1 : 1)) } : p));
+    try {
+      await toggleSad(postId, reacted);
+    } catch {
+      setSadPosts(prev => { const n = new Set(prev); reacted ? n.add(postId) : n.delete(postId); return n; });
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, sad_count: Math.max(0, (p.sad_count ?? 0) + (reacted ? 1 : -1)) } : p));
+    }
+  }
+
+  async function handleFunny(postId: string) {
+    const reacted = funnyPosts.has(postId);
+    reacted ? await getHaptics().selectionAsync() : await getHaptics().impactAsync(getHaptics().ImpactFeedbackStyle.Light);
+    setFunnyPosts(prev => { const n = new Set(prev); reacted ? n.delete(postId) : n.add(postId); return n; });
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, funny_count: Math.max(0, (p.funny_count ?? 0) + (reacted ? -1 : 1)) } : p));
+    try {
+      await toggleFunny(postId, reacted);
+    } catch {
+      setFunnyPosts(prev => { const n = new Set(prev); reacted ? n.add(postId) : n.delete(postId); return n; });
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, funny_count: Math.max(0, (p.funny_count ?? 0) + (reacted ? 1 : -1)) } : p));
     }
   }
 
@@ -583,7 +590,7 @@ export default function HomeScreen({
       <View style={styles.topBar}>
         <Text style={[styles.logo, { color: colors.text }]}>MURK<Text style={[styles.logoAccent, { color: colors.accentMuted }]}>D</Text></Text>
         <View style={[styles.chip, { backgroundColor: colors.text }]}>
-          <Text style={styles.chipText}>POST VANISHES IN 48H</Text>
+          <Text style={[styles.chipText, { color: colors.bg }]}>POST VANISHES IN 48H</Text>
         </View>
       </View>
       <View style={[styles.divider, { backgroundColor: colors.navBorder }]} />
@@ -687,15 +694,19 @@ export default function HomeScreen({
                 canEdit={(Date.now() - new Date(post.created_at).getTime()) < 60 * 60 * 1000}
                 liked={likedPosts.has(post.id)}
                 notAlone={notAlonePosts.has(post.id)}
+                sad={sadPosts.has(post.id)}
+                funny={funnyPosts.has(post.id)}
                 isFocused={highlightedPostId === post.id}
                 surfaceColor={colors.surface}
                 onLike={() => handleLike(post.id)}
                 onNotAlone={() => handleNotAlone(post.id)}
+                onSad={() => handleSad(post.id)}
+                onFunny={() => handleFunny(post.id)}
                 onDelete={() => handleDeletePress(post.id)}
                 onEdit={() => handleEdit(post)}
                 onReport={() => handleReport(post.id)}
                 onBlock={() => handleBlock(post)}
-                onCopy={() => { Clipboard.setStringAsync(post.content); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
+                onCopy={() => { getClipboard().setStringAsync(post.content); getHaptics().notificationAsync(getHaptics().NotificationFeedbackType.Success); }}
               />
             )}
             <View style={styles.postDivider} />
@@ -709,31 +720,14 @@ export default function HomeScreen({
         )}
       </ScrollView>
 
-      <View style={[styles.nav, { backgroundColor: colors.nav, borderTopColor: colors.navBorder }]}>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <HugeiconsIcon icon={Home01Icon} size={24} color={colors.text} />
-          <Text style={[styles.navLabel, { color: colors.text }]}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToPost}>
-          <HugeiconsIcon icon={AddCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>POST</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={handleNavigateToNotifications}>
-          <View style={styles.notifIconWrapper}>
-            <HugeiconsIcon icon={BellIcon} size={24} color={colors.textMuted} />
-            {unreadNotifications && <View style={styles.notifDot} />}
-          </View>
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>DROPS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToProfile}>
-          <HugeiconsIcon icon={UserCircleIcon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>PROFILE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={onNavigateToSettings}>
-          <HugeiconsIcon icon={Settings01Icon} size={24} color={colors.textMuted} />
-          <Text style={[styles.navLabel, { color: colors.textMuted }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav
+        activeTab="home"
+        unreadNotifications={unreadNotifications}
+        onPressPost={onNavigateToPost}
+        onPressDrops={handleNavigateToNotifications}
+        onPressProfile={onNavigateToProfile}
+        onPressSettings={onNavigateToSettings}
+      />
 
       <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -772,7 +766,7 @@ const styles = StyleSheet.create({
   logo: { fontSize: 24, fontWeight: '900', color: '#2E4A3E', letterSpacing: 4 },
   logoAccent: { color: '#8FAF9F' },
   chip: { backgroundColor: '#2E4A3E', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4 },
-  chipText: { fontSize: 9, color: '#F0F5F0', letterSpacing: 1.5, fontWeight: '700' },
+  chipText: { fontSize: 9, letterSpacing: 1.5, fontWeight: '700' },
   divider: { height: 1, backgroundColor: 'rgba(46, 74, 62, 0.1)' },
   newPostsBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#2E4A3E', paddingVertical: 10 },
   newPostsDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#8FAF9F' },
@@ -813,12 +807,7 @@ const styles = StyleSheet.create({
   expiryRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 'auto' as any },
   expiryText: { fontSize: 10, color: '#8B8B8B', letterSpacing: 0.5 },
 
-  nav: { flexDirection: 'row', backgroundColor: '#F0F5F0', paddingTop: 12, paddingBottom: 32, borderTopWidth: 1, borderTopColor: 'rgba(46, 74, 62, 0.1)' },
-  navItem: { flex: 1, alignItems: 'center', gap: 4 },
-  navLabel: { fontSize: 10, color: '#8B8B8B', letterSpacing: 2 },
-  navLabelActive: { color: '#2E4A3E' },
-  notifIconWrapper: { position: 'relative' },
-  notifDot: { position: 'absolute', top: -1, right: -3, width: 8, height: 8, borderRadius: 4, backgroundColor: '#E83D3D' },
+
   loadMoreFooter: { paddingVertical: 24, alignItems: 'center' },
   filterBar: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: 'rgba(46,74,62,0.1)' },
   filterBarInner: { paddingHorizontal: 20, paddingVertical: 10, gap: 8, flexDirection: 'row' },

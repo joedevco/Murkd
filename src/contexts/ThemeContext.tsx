@@ -32,7 +32,7 @@ const light: ThemeColors = {
 const dark: ThemeColors = {
   bg: '#121212',
   surface: '#1E1E1E',
-  text: '#E0E0E0',
+  text: '#F0F0F0',
   textMuted: '#9E9E9E',
   accent: '#8FAF9F',
   accentMuted: '#5A7A6A',

@@ -2,15 +2,16 @@
   "expo": {
     "name": "Murkd",
     "slug": "Murkd",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "murkd",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 5,
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
@@ -28,10 +29,8 @@
         }
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2E4A3E"
       },
       "package": "com.genigeek.Murkd"
     },
@@ -39,7 +38,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification_icon.png",
+          "color": "#8FAF9F"
+        }
+      ],
       [
         "expo-splash-screen",
         {

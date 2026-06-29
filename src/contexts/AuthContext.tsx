@@ -1,9 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/config';
+import { clearPushToken } from '../lib/push-notifications';
 
 interface AuthContextType {
   session: Session | null;
@@ -66,22 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data } = await supabase.auth.getSession();
       const userId = data?.session?.user?.id;
-      const token = data?.session?.access_token;
-      if (userId && token) {
-        await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?user_id=eq.${userId}`, {
-          method: 'DELETE',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+      if (userId) {
+        await clearPushToken(userId);
       }
     } catch (e) {
       console.error('signOut: error removing push token', e);
     }
 
-    await Notifications.dismissAllNotificationsAsync();
-    await Notifications.setBadgeCountAsync(0);
     await supabase.auth.signOut();
   };
 
@@ -98,8 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const deleteAccount = async (): Promise<string | null> => {
     try {
+      const { data } = await supabase.auth.getSession();
+      const userId = data?.session?.user?.id;
+      if (userId) {
+        await clearPushToken(userId);
+      }
       const { error } = await supabase.rpc('delete_user');
       if (error) throw error;
+      const mod = await import('expo-notifications');
+      const Notifications = mod.default || mod;
       await Notifications.dismissAllNotificationsAsync();
       await Notifications.setBadgeCountAsync(0);
       await AsyncStorage.clear();

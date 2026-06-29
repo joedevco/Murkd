@@ -53,4 +53,4 @@ We may update these terms at any time. Continued use of the App after changes co
 
 For questions about these terms, contact us at:
 
-**Email:** murkdapp@yahoo.com
+**Email:** murkdapp@gmail.com

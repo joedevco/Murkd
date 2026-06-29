@@ -1,21 +1,26 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+export async function setupNotificationHandler() {
+  const mod = await import('expo-notifications');
+  const Notifications = mod.default || mod;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  const Device = require('expo-device');
   if (!Device.isDevice) return null;
+
+  const mod = await import('expo-notifications');
+  const Notifications = mod.default || mod;
+  const { Platform } = require('react-native');
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -34,6 +39,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   try {
+    const Constants = require('expo-constants');
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
     const expoPushToken = await Notifications.getExpoPushTokenAsync({ projectId });
     return expoPushToken.data;
@@ -43,14 +49,24 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 }
 
-export async function savePushToken(userId: string, token: string): Promise<boolean> {
+export async function clearPushToken(userId: string): Promise<void> {
   try {
-    const { error } = await supabase
+    await supabase
       .from('push_tokens')
-      .upsert(
-        { user_id: userId, push_token: token, platform: Platform.OS },
-        { onConflict: 'user_id' }
-      );
+      .delete()
+      .eq('user_id', userId);
+  } catch (e) {
+    console.error('clearPushToken: error', e);
+  }
+}
+
+export async function savePushToken(token: string): Promise<boolean> {
+  try {
+    const { Platform } = require('react-native');
+    const { error } = await supabase.rpc('upsert_push_token', {
+      p_push_token: token,
+      p_platform: Platform.OS,
+    });
     if (error) {
       console.error('savePushToken: upsert error', error);
       return false;
@@ -62,9 +78,9 @@ export async function savePushToken(userId: string, token: string): Promise<bool
   }
 }
 
-export async function setupPushNotifications(userId: string): Promise<boolean> {
+export async function setupPushNotifications(): Promise<boolean> {
   const token = await registerForPushNotificationsAsync();
   if (!token) return false;
-  const saved = await savePushToken(userId, token);
+  const saved = await savePushToken(token);
   return saved;
 }
