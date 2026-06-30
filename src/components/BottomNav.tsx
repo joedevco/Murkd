@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react-native';
 import {
   Home01Icon, AddCircleIcon, BellIcon, UserCircleIcon, Settings01Icon,
 } from '@hugeicons/core-free-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface Props {
@@ -25,6 +26,7 @@ export default function BottomNav({
   onPressSettings,
 }: Props) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const tabs = [
     { key: 'home' as const, icon: Home01Icon, label: 'HOME', onPress: onPressHome },
@@ -35,12 +37,12 @@ export default function BottomNav({
   ];
 
   return (
-    <View style={[styles.nav, { backgroundColor: colors.nav, borderTopColor: colors.navBorder }]}>
+    <View style={[styles.nav, { backgroundColor: colors.nav, borderTopColor: colors.navBorder, paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
       {tabs.map(tab => {
         const isActive = activeTab === tab.key;
         const color = isActive ? colors.text : colors.textMuted;
         return (
-          <TouchableOpacity key={tab.key} style={styles.navItem} activeOpacity={0.7} onPress={tab.onPress}>
+          <TouchableOpacity key={tab.key} style={styles.navItem} activeOpacity={0.7} onPress={tab.onPress ?? undefined} disabled={!tab.onPress}>
             <View style={tab.showDot ? styles.notifIconWrapper : undefined}>
               <HugeiconsIcon icon={tab.icon} size={24} color={color} />
               {tab.showDot && <View style={styles.notifDot} />}
@@ -57,7 +59,6 @@ const styles = StyleSheet.create({
   nav: {
     flexDirection: 'row',
     paddingTop: 12,
-    paddingBottom: 32,
     borderTopWidth: 1,
   },
   navItem: {

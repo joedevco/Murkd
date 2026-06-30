@@ -1,8 +1,10 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isRunningInExpoGo } from 'expo';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -55,7 +57,7 @@ export default function App() {
 
     Linking.getInitialURL().then(url => {
       if (url) handleRecoveryUrl(url);
-    });
+    }).catch(() => {});
 
     const linkListener = Linking.addEventListener('url', ({ url }) => {
       handleRecoveryUrl(url);
@@ -63,29 +65,32 @@ export default function App() {
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        setupPushNotifications();
-        maybeRotateGhostTag();
+        setupPushNotifications().catch(() => {});
+        maybeRotateGhostTag().catch(() => {});
       }
-    });
+    }).catch(() => {});
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setupPushNotifications();
-        maybeRotateGhostTag();
+        setupPushNotifications().catch(() => {});
+        maybeRotateGhostTag().catch(() => {});
       }
     });
 
     let responseListener;
-    import('expo-notifications').then(mod => {
-      const Notifications = mod.default || mod;
-      responseListener = Notifications.addNotificationResponseReceivedListener(async response => {
-        const data = response.notification.request.content.data;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && data?.screen === 'notifications') {
-          setScreen('notifications');
-        }
-      });
-    });
+    if (!(isRunningInExpoGo() && Platform.OS === 'android')) {
+      import('expo-notifications').then(mod => {
+        const Notifications = mod.default || mod;
+        if (typeof Notifications?.addNotificationResponseReceivedListener !== 'function') return;
+        responseListener = Notifications.addNotificationResponseReceivedListener(async response => {
+          const data = response.notification.request.content.data;
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && data?.screen === 'notifications') {
+            setScreen('notifications');
+          }
+        });
+      }).catch(() => {});
+    }
 
     return () => {
       subscription.unsubscribe();
@@ -100,6 +105,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
         <ErrorBoundary>
           <ThemeProvider>
             <AuthProvider>
@@ -219,6 +225,7 @@ export default function App() {
             </AuthProvider>
           </ThemeProvider>
         </ErrorBoundary>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, Keyboard, KeyboardAvoidingView,
   Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput,
@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { createPost } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import BottomNav from '../components/BottomNav';
 
 interface Props {
@@ -25,10 +26,20 @@ export default function PostScreen({ onBack, onPostDone, onNavigateToProfile, on
   const Haptics = require('expo-haptics');
   const { user } = useAuth();
   const { colors, theme } = useTheme();
-  const ghostTag = (user?.user_metadata?.ghost_tag as string | undefined)?.replace('@', '');
+  const [customGhostTag, setCustomGhostTag] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from('profiles').select('custom_ghost_tag').eq('id', user.id).single().then(({ data }) => {
+        if (data?.custom_ghost_tag) setCustomGhostTag(data.custom_ghost_tag);
+      }, () => {});
+    }
+  }, [user?.id]);
+
+  const ghostTag = ((customGhostTag ?? user?.user_metadata?.ghost_tag) as string | undefined)?.replace('@', '');
 
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -417,7 +417,7 @@ const [changingPassword, setChangingPassword] = useState(false);
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ABOUT</Text>
             <TouchableOpacity style={styles.settingRow} activeOpacity={0.6}>
               <Text style={[styles.settingText, { color: colors.text }]}>Version</Text>
-              <Text style={[styles.settingValue, { color: colors.textMuted }]}>{Constants.expoConfig?.version ?? '1.0.1'}</Text>
+              <Text style={[styles.settingValue, { color: colors.textMuted }]}>{Constants.expoConfig?.version}</Text>
             </TouchableOpacity>
           </View>
         </View>

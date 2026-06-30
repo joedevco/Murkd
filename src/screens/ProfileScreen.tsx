@@ -5,6 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { fetchUserStats, fetchUserPosts, fetchFreezeGhostTag, type Post } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import BottomNav from '../components/BottomNav';
 import { SkeletonBox, PostSkeleton } from '../components/Skeletons';
 
@@ -21,6 +22,8 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
   const [stats, setStats] = useState({ postCount: 0, totalLikes: 0, resonance: 0 });
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [frozen, setFrozen] = useState(false);
+  const [customGhostTag, setCustomGhostTag] = useState<string | null>(null);
+  const [isBetaTester, setIsBetaTester] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,15 +33,18 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
         fetchUserStats(user.id),
         fetchUserPosts(user.id),
         fetchFreezeGhostTag(),
-      ]).then(([s, p, f]) => {
+        supabase.from('profiles').select('custom_ghost_tag, is_beta_tester').eq('id', user.id).single(),
+      ]).then(([s, p, f, { data: profile }]) => {
         setStats(s);
         setMyPosts(p);
         setFrozen(f);
+        setCustomGhostTag(profile?.custom_ghost_tag ?? null);
+        setIsBetaTester(profile?.is_beta_tester ?? false);
       }).finally(() => setLoading(false));
     }
   }, [user?.id]);
 
-  const ghostTag = (user?.user_metadata?.ghost_tag as string | undefined)?.replace('@', '') ?? 'ghost';
+  const ghostTag = (customGhostTag ?? user?.user_metadata?.ghost_tag as string | undefined)?.replace('@', '') ?? 'ghost';
   const createdAt = user?.user_metadata?.ghost_tag_created_at as string | undefined;
   const ghostSince = createdAt
     ? new Date(createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -89,7 +95,7 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
         </View>
         <Text style={[styles.tag, { color: colors.text }]}>{ghostTag}</Text>
         <Text style={[styles.since, { color: colors.textMuted }]}>Ghost since {ghostSince}</Text>
-        {!frozen && (
+        {!frozen && !customGhostTag && (
           <Text style={[
             styles.resetText,
             (() => {

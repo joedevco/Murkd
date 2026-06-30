@@ -287,13 +287,28 @@ export default function HomeScreen({
   const [savingEdit, setSavingEdit] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(false);
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
+  const [showGhostTagModal, setShowGhostTagModal] = useState(false);
+  const [ghostTagInput, setGhostTagInput] = useState('');
+  const [savingGhostTag, setSavingGhostTag] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       const uid = data?.session?.user?.id ?? null;
       setUserId(uid);
       userIdRef.current = uid;
-      if (uid) fetchBlockedGhosts(uid).then(blocks => setBlockedUserIds(new Set(blocks.map(b => b.blocked_user_id)))).catch(() => {});
+      if (uid) {
+        fetchBlockedGhosts(uid).then(blocks => setBlockedUserIds(new Set(blocks.map(b => b.blocked_user_id)))).catch(() => {});
+        supabase
+          .from('profiles')
+          .select('is_beta_tester, custom_ghost_tag')
+          .eq('id', uid)
+          .single()
+          .then(({ data: profile }) => {
+            if (profile?.is_beta_tester && !profile?.custom_ghost_tag) {
+              setShowGhostTagModal(true);
+            }
+          });
+      }
     });
   }, []);
 
@@ -541,6 +556,22 @@ export default function HomeScreen({
     }
   }
 
+  async function handleSaveGhostTag() {
+    if (!ghostTagInput.trim() || savingGhostTag || !userId) return;
+    setSavingGhostTag(true);
+    try {
+      await supabase
+        .from('profiles')
+        .update({ custom_ghost_tag: ghostTagInput.trim() })
+        .eq('id', userId);
+      setShowGhostTagModal(false);
+    } catch {
+      Alert.alert('Error', 'Failed to save your ghost tag. Try again.');
+    } finally {
+      setSavingGhostTag(false);
+    }
+  }
+
   function handleReport(postId: string) {
     Alert.alert('Report confession', 'Why are you reporting this?', [
       ...REPORT_REASONS.map(reason => ({
@@ -751,6 +782,43 @@ export default function HomeScreen({
                 onPress={handleSaveEdit} disabled={!editText.trim() || savingEdit} activeOpacity={0.8}
               >
                 {savingEdit ? <ActivityIndicator size="small" color="#F0F5F0" /> : <Text style={styles.modalSaveText}>SAVE</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showGhostTagModal} transparent animationType="fade">
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>CLAIM YOUR GHOST TAG</Text>
+            <Text style={{ fontSize: 13, color: '#8B8B8B', textAlign: 'center', lineHeight: 20 }}>
+              As a founding beta tester, you get a custom ghost tag. Nobody else will have yours.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={ghostTagInput}
+              onChangeText={t => t.length <= 20 && setGhostTagInput(t)}
+              autoFocus
+              placeholder="Your ghost tag..."
+              placeholderTextColor="rgba(46,74,62,0.35)"
+              autoCapitalize="none"
+            />
+            <Text style={styles.modalCounter}>{20 - ghostTagInput.length}</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalSave, (!ghostTagInput.trim() || savingGhostTag) && { opacity: 0.4 }]}
+                onPress={handleSaveGhostTag}
+                disabled={!ghostTagInput.trim() || savingGhostTag}
+                activeOpacity={0.8}
+              >
+                {savingGhostTag
+                  ? <ActivityIndicator size="small" color="#F0F5F0" />
+                  : <Text style={styles.modalSaveText}>CLAIM IT</Text>
+                }
               </TouchableOpacity>
             </View>
           </View>

@@ -410,10 +410,10 @@ export async function maybeRotateGhostTag(): Promise<void> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('freeze_ghost_tag')
+    .select('freeze_ghost_tag, is_admin')
     .eq('id', user.id)
     .single();
-  if (profile?.freeze_ghost_tag) return;
+  if (profile?.freeze_ghost_tag || profile?.is_admin) return;
 
   const created = new Date(createdAt).getTime();
   const thirtyDays = 30 * 24 * 60 * 60 * 1000;

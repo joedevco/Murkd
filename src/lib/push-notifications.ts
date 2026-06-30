@@ -1,8 +1,13 @@
 import { supabase } from './supabase';
+import { isRunningInExpoGo } from 'expo';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 export async function setupNotificationHandler() {
+  if (isRunningInExpoGo() && Platform.OS === 'android') return;
   const mod = await import('expo-notifications');
   const Notifications = mod.default || mod;
+  if (typeof Notifications?.setNotificationHandler !== 'function') return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -18,9 +23,11 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   const Device = require('expo-device');
   if (!Device.isDevice) return null;
 
+  if (isRunningInExpoGo() && Platform.OS === 'android') return null;
+
   const mod = await import('expo-notifications');
   const Notifications = mod.default || mod;
-  const { Platform } = require('react-native');
+  if (typeof Notifications?.getPermissionsAsync !== 'function') return null;
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -39,7 +46,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   try {
-    const Constants = require('expo-constants');
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
     const expoPushToken = await Notifications.getExpoPushTokenAsync({ projectId });
     return expoPushToken.data;
@@ -62,7 +68,6 @@ export async function clearPushToken(userId: string): Promise<void> {
 
 export async function savePushToken(token: string): Promise<boolean> {
   try {
-    const { Platform } = require('react-native');
     const { error } = await supabase.rpc('upsert_push_token', {
       p_push_token: token,
       p_platform: Platform.OS,
