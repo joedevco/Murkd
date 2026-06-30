@@ -419,7 +419,6 @@ export default function HomeScreen({
       setFunnyPosts(new Set(funnyPostIds));
       setOffset(fetchedPosts.length);
       setHasMore(more);
-      setNewPostsCount(0);
     } catch (e) {
       classifyError(e) === 'offline' ? setIsOffline(true) : (setServerError(true), setPosts([]));
     } finally {

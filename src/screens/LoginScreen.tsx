@@ -26,19 +26,28 @@ export default function LoginScreen({ onLogin, onRegister, onForgotPassword }: P
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleLogin = async () => {
-  setLoading(true);
-  setError(null);
-  const err = await signIn(email, password);
-  if (err) {
-    setError(err);
-    setLoading(false);
-  } else {
-    onLogin();
-  }
-};
+    const emailEmpty = !email.trim();
+    const passwordEmpty = !password.trim();
+    setEmailError(emailEmpty);
+    setPasswordError(passwordEmpty);
+    if (emailEmpty || passwordEmpty) return;
+    setLoading(true);
+    setSubmitError(null);
+    const err = await signIn(email, password);
+    if (err) {
+      setSubmitError(err);
+      setEmailError(true);
+      setPasswordError(true);
+      setLoading(false);
+    } else {
+      onLogin();
+    }
+  };
 
   return (
     <View style={styles.wrapper}>
@@ -61,14 +70,14 @@ export default function LoginScreen({ onLogin, onRegister, onForgotPassword }: P
         keyboardDismissMode="none"
       >
         <View style={styles.form}>
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, emailError && styles.inputError]}>
             <HugeiconsIcon icon={Mail02Icon} size={20} color="#8B8B8B" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="EMAIL"
               placeholderTextColor="#4A4A4A"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={t => { setEmail(t); setEmailError(false); }}
               autoCapitalize="none"
               keyboardType="email-address"
               returnKeyType="next"
@@ -77,7 +86,7 @@ export default function LoginScreen({ onLogin, onRegister, onForgotPassword }: P
             />
           </View>
 
-          <View style={[styles.inputWrapper, error && styles.inputError]}>
+          <View style={[styles.inputWrapper, passwordError && styles.inputError]}>
             <HugeiconsIcon icon={LockIcon} size={20} color="#8B8B8B" style={styles.inputIcon} />
             <TextInput
               ref={passwordRef}
@@ -85,7 +94,7 @@ export default function LoginScreen({ onLogin, onRegister, onForgotPassword }: P
               placeholder="PASSWORD"
               placeholderTextColor="#4A4A4A"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={t => { setPassword(t); setPasswordError(false); }}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               returnKeyType="done"
@@ -106,7 +115,7 @@ export default function LoginScreen({ onLogin, onRegister, onForgotPassword }: P
             <Text style={styles.forgotPassword}>FORGOT PASSWORD?</Text>
           </TouchableOpacity>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {submitError && <Text style={styles.errorText}>{submitError}</Text>}
 
           <TouchableOpacity
             style={styles.button}

@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Linking, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as ExpoSplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+ExpoSplashScreen.preventAutoHideAsync();
 import { isRunningInExpoGo } from 'expo';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
@@ -53,6 +56,7 @@ export default function App() {
   }
 
   useEffect(() => {
+    ExpoSplashScreen.hideAsync();
     setupNotificationHandler().catch(() => {});
 
     Linking.getInitialURL().then(url => {

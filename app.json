@@ -2,7 +2,7 @@
   "expo": {
     "name": "Murkd",
     "slug": "Murkd",
-    "version": "1.0.3",
+    "version": "1.0.5",
     "orientation": "portrait",
     "scheme": "murkd",
     "icon": "./assets/icon.png",
@@ -11,7 +11,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 7,
+      "versionCode": 9,
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
