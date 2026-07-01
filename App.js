@@ -218,7 +218,7 @@ export default function App() {
                     onBack={() => setScreen(prevScreen)}
                     onPostDone={() => {
                       setRefreshKey(k => k + 1);
-                      setScreen(prevScreen);
+                      setScreen('home');
                     }}
                     onNavigateToProfile={() => { setPrevScreen('post'); setScreen('profile'); }}
                     onNavigateToNotifications={() => { setPrevScreen('post'); setScreen('notifications'); }}
