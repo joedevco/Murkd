@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getNotificationPreferences, updateNotificationPreferences, fetchIsAdmin, sendAnnouncement, fetchBlockedGhosts, unblockGhost } from '../lib/api';
 import BottomNav from '../components/BottomNav';
+import appConfig from '../../app.json';
 
 interface Props {
   onNavigateToHome?: () => void;
@@ -125,7 +126,6 @@ For questions, contact us at murkdapp@gmail.com`;
 const TAG_OPTIONS = ['ALL', 'WORK', 'RELATIONSHIPS', 'FAMILY', 'MENTAL HEALTH', 'MONEY', 'SECRET', 'REGRET', 'OTHER'];
 
 export default function SettingsScreen({ onNavigateToHome, onNavigateToPost, onNavigateToNotifications, onNavigateToProfile, onNavigateToLogin }: Props) {
-  const Constants = require('expo-constants');
   const { user, signOut, deleteAccount } = useAuth();
   const [policyType, setPolicyType] = useState<'privacy' | 'terms' | null>(null);
   const [defaultTag, setDefaultTag] = useState('ALL');
@@ -417,7 +417,7 @@ const [changingPassword, setChangingPassword] = useState(false);
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ABOUT</Text>
             <TouchableOpacity style={styles.settingRow} activeOpacity={0.6}>
               <Text style={[styles.settingText, { color: colors.text }]}>Version</Text>
-              <Text style={[styles.settingValue, { color: colors.textMuted }]}>{Constants.expoConfig?.version}</Text>
+              <Text style={[styles.settingValue, { color: colors.textMuted }]}>{appConfig.expo.version}</Text>
             </TouchableOpacity>
           </View>
         </View>
