@@ -95,12 +95,15 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
         </View>
         <Text style={[styles.tag, { color: colors.text }]}>{ghostTag}</Text>
         <Text style={[styles.since, { color: colors.textMuted }]}>Ghost since {ghostSince}</Text>
-        {!frozen && !customGhostTag && (
+        {!frozen && !customGhostTag && !isBetaTester && (
           <Text style={[
             styles.resetText,
             (() => {
               if (!createdAt) return { color: colors.textMuted };
-              const daysIntoCycle = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24)) % 30;
+              const accountAgeMs = Date.now() - new Date(createdAt).getTime();
+              const isNewAccount = accountAgeMs < 1000 * 60 * 60 * 24;
+              if (isNewAccount) return { color: colors.textMuted };
+              const daysIntoCycle = Math.floor(accountAgeMs / (1000 * 60 * 60 * 24)) % 30;
               const daysLeft = daysIntoCycle === 0 ? 30 : 30 - daysIntoCycle;
               if (daysLeft <= 3) return { color: '#E83D3D' };
               if (daysLeft <= 7) return { color: '#E8A030' };
@@ -109,7 +112,10 @@ export default function ProfileScreen({ onNavigateToHome, onNavigateToPost, onNa
           ]}>
             {(() => {
               if (!createdAt) return '';
-              const daysIntoCycle = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24)) % 30;
+              const accountAgeMs = Date.now() - new Date(createdAt).getTime();
+              const isNewAccount = accountAgeMs < 1000 * 60 * 60 * 24;
+              if (isNewAccount) return 'TAG RESETS IN 30 DAYS';
+              const daysIntoCycle = Math.floor(accountAgeMs / (1000 * 60 * 60 * 24)) % 30;
               if (daysIntoCycle === 0) return 'RESETS TODAY';
               const daysLeft = 30 - daysIntoCycle;
               return daysLeft === 1 ? 'TAG RESETS IN 1 DAY' : `TAG RESETS IN ${daysLeft} DAYS`;
